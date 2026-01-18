@@ -8,20 +8,22 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 try:
     from bot import main
+    print("IMPORT SUCCESS")
 except Exception as import_e:
-    # Если не удалось импортировать, вернём ошибку сразу
+    tb = traceback.format_exc()
+    print(f"IMPORT ERROR: {import_e}\n\nTRACEBACK:\n{tb}")
     def handler(request):
-        tb = traceback.format_exc()
-        return f"IMPORT ERROR: {import_e}\n\nTRACEBACK:\n{tb}", 500
+        return "IMPORT FAILED (see logs)", 500
 else:
-    # Если импорт прошел, обернём main
     async def handler(request):
         try:
+            print("CALLING MAIN")
             await main()
             return "OK"
         except Exception as e:
             tb = traceback.format_exc()
-            return f"ERROR: {e}\n\nTRACEBACK:\n{tb}", 500
+            print(f"RUNTIME ERROR: {e}\n\nTRACEBACK:\n{tb}")
+            return "RUNTIME FAILED (see logs)", 500
 
 # Для Vercel Serverless Function
 app = handler
