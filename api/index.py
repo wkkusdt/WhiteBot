@@ -12,13 +12,10 @@ from bot import main
 async def handler(request):
     try:
         await main()
-        return {"status": "ok"}
+        return "OK"
     except Exception as e:
-        return {
-            "status": "error",
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }
+        tb = traceback.format_exc()
+        return f"ERROR: {e}\n\nTRACEBACK:\n{tb}", 500
 
 # Для Vercel Serverless Function
 app = handler
