@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from aiogram import Bot, Dispatcher, F
+from aiohttp import web
+from aiogram import Bot, Dispatcher, F, types
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import Command, CommandObject
@@ -19,6 +20,7 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     Message,
 )
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from dotenv import load_dotenv
 
 from db import SubmissionsDb
@@ -117,6 +119,10 @@ async def main() -> None:
 
     token = os.getenv("BOT_TOKEN")
     admin_id_raw = os.getenv("ADMIN_ID")
+    webhook_url = os.getenv("WEBHOOK_URL")
+    webhook_path = os.getenv("WEBHOOK_PATH", "/webhook")
+    port = int(os.getenv("PORT", "8080"))
+    
     if not token:
         raise RuntimeError("BOT_TOKEN is not set")
     if not admin_id_raw:
@@ -312,7 +318,37 @@ async def main() -> None:
         else:
             await bot.send_document(chat_id=message.chat.id, document=s.file_id, caption=caption)
 
-    await dp.start_polling(bot)
+    # Webhook or polling mode
+    if webhook_url:
+        # Webhook mode for deployment
+        app = web.Application()
+        
+        # Register webhook handler
+        SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=webhook_path)
+        setup_application(app, dp, bot=bot)
+        
+        # Set webhook
+        await bot.set_webhook(webhook_url)
+        
+        # Start web server
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, "0.0.0.0", port)
+        await site.start()
+        print(f"Webhook server started on port {port}")
+        
+        # Keep the server running
+        try:
+            while True:
+                await asyncio.sleep(3600)  # Sleep for 1 hour intervals
+        except asyncio.CancelledError:
+            pass
+        finally:
+            await runner.cleanup()
+            await bot.session.close()
+    else:
+        # Local polling mode
+        await dp.start_polling(bot)
 
 
 if __name__ == "__main__":
